@@ -23,6 +23,8 @@
 #include "usb_device.h"
 #include "Uart1.h"
 #include "BluePill.h"
+#include "i2c.h"
+#include "Touch.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -100,6 +102,9 @@ int main(void)
 
   printf("started\r\n");
 
+  i2cInit();
+  touchInit();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -107,7 +112,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  touchProc();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
