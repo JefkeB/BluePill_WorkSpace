@@ -84,16 +84,23 @@ void tpd_up(uint16_t x, uint16_t y, uint16_t p)
 	multiTouch.id++;
 }
 
+uint8_t buffer[4] = { 0 };
+uint16_t prevX= -1;
+uint16_t prevY= -1;
+int16_t deltaX;
+int16_t deltaY;
+
 void touchInput_sync()
 {
 	multiTouch.report = 0x01;
 	multiTouch.count++;
-
+/*
 	//for(int i=0;i<max_point_num;i++)
 	for(int i=0;i<1;i++)
 	{
 		printf("%d %d x:%4d  y:%4d\r\n", multiTouch.id, multiTouch.touch[i].tip, multiTouch.touch[i].x, multiTouch.touch[i].y);
 	}
+*/
 /*
 	USBD_HID_SendReport(&hUsbDeviceFS, (uint8_t*)&multiTouch, sizeof(struct multiTouchHid_t));
 	multiTouch.id=0;
@@ -102,6 +109,60 @@ void touchInput_sync()
 		memset(&multiTouch.touch[i], 0x00, sizeof(struct touchHid_t));
 	}
 */
+
+	// 0 : button state bit field
+	// 1 : signed 8bit X-axis offset since the last position
+	// 2 : signed 8bit Y-axis offset since the last position
+	// 3 : signed 8bit Wheel offset since the last position
+	//uint8_t buffer[4] = { 0 };
+	//buffer[1] = 10;
+	//static uint16_t old = -1;
+	if(prevX == -1)
+	{
+		prevX = multiTouch.touch[0].x;
+		prevY = multiTouch.touch[0].y;
+	}
+	else
+	{
+		buffer[1] = 0;
+		buffer[2] = 0;
+
+		deltaX = multiTouch.touch[0].x - prevX;
+		deltaY = multiTouch.touch[0].y - prevY;
+
+		deltaX *= -1;
+		if(deltaX >= 3)
+		{
+			buffer[1] = deltaX >= 10 ?20:2;
+		}
+		else
+		{
+			if(deltaX <= -3)
+			{
+				buffer[1] = deltaX <= -10?-20:-2;
+			}
+		}
+		prevX = multiTouch.touch[0].x;
+
+
+		if(deltaY >= 5)
+		{
+			buffer[2] = -5;
+		}
+		else
+		{
+			if(deltaY <= -5)
+			{
+				buffer[2] = 5;
+			}
+		}
+		prevY = multiTouch.touch[0].y;
+
+		if((buffer[1] != 0) || (buffer[2] != 0))
+		{
+			USBD_HID_SendReport(&hUsbDeviceFS, buffer, 4);
+		}
+	}
 }
 
 

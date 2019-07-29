@@ -50,7 +50,7 @@
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-
+uint16_t delay = 250;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -98,6 +98,8 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  BluePill_LedInit();
+
   Uart1_Start();
 
   printf("started\r\n");
@@ -114,6 +116,12 @@ int main(void)
     /* USER CODE END WHILE */
 	  touchProc();
     /* USER CODE BEGIN 3 */
+
+	if(delay == 0)
+	{
+		delay = 250;
+		BluePill_LedToggle();
+	}
   }
   /* USER CODE END 3 */
 }
