@@ -19,7 +19,8 @@ int _write(int fd, char *str, int len)
 	for(int i=0;i<len;i++)
 	{
 		//__io_putchar((*str++));
-		HAL_UART_Transmit(&huart1, (uint8_t *)&str[i], 1, 0xFFFF);
+	//	HAL_UART_Transmit(&huart1, (uint8_t *)&str[i], 1, 0xFFFF);
+		Uart_Putc(str[i]);
 	}
 	return len;
 }

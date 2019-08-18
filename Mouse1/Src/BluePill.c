@@ -29,3 +29,24 @@ void BluePill_LedToggle()
 {
 	HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 }
+
+
+//
+//
+//
+void BluePill_UsbDisconnect()
+{
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+
+
+	GPIO_InitTypeDef GPIO_InitStruct;
+
+	GPIO_InitStruct.Pin = GPIO_PIN_12;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+
+	//msleep(5); //delay
+}
