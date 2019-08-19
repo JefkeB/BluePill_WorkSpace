@@ -24,8 +24,7 @@
 #include "usb_device.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
-
-#include "usbd_ptp_hid.h"
+#include "usbd_hid.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -55,18 +54,7 @@ USBD_HandleTypeDef hUsbDeviceFS;
  * -- Insert your external function declaration here --
  */
 /* USER CODE BEGIN 1 */
-uint8_t OutEvent(uint8_t *data, uint8_t dataLength)
-{
-	printf("data rx length: %d\r\n", dataLength);
-	for(int idx = 0; idx < dataLength; idx++)
-	{
-		printf("%x ", data[idx]);
-	}
-	printf("\r\n");
-	//Uart_Puts("data\r\n");
 
-	return 1;
-}
 /* USER CODE END 1 */
 
 /**
@@ -94,7 +82,7 @@ void MX_USB_DEVICE_Init(void)
   }
 
   /* USER CODE BEGIN USB_DEVICE_Init_PostTreatment */
-
+  
   /* USER CODE END USB_DEVICE_Init_PostTreatment */
 }
 

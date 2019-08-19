@@ -181,7 +181,6 @@ void PendSV_Handler(void)
   * @brief This function handles System tick timer.
   */
 extern uint16_t delay;
-extern uint16_t scantime;
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
@@ -191,8 +190,6 @@ void SysTick_Handler(void)
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   if(delay > 0) delay--;
-
-  scantime++;
 
   /* USER CODE END SysTick_IRQn 1 */
 }
