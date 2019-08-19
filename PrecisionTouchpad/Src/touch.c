@@ -8,7 +8,7 @@
 #include "touch.h"
 #include "i2c.h"
 #include "usb_device.h"
-#include "usbd_hid.h"
+#include "usbd_hid_ptp.h"
 
 #define max_point_num 5
 
