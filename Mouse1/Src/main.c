@@ -26,6 +26,8 @@
 #include "i2c.h"
 #include "Touch.h"
 
+#include "Uart.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -91,18 +93,24 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+  BluePill_UsbDisconnect();
+
+  Uart_Setup();
+  printf("gestart\r\n");
+
+  //Uart1_Start();
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USB_DEVICE_Init();
-  MX_USART1_UART_Init();
+  //MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   BluePill_LedInit();
 
-  Uart1_Start();
 
-  printf("started\r\n");
+  //printf("started\r\n");
 
   i2cInit();
   touchInit();
@@ -120,7 +128,8 @@ int main(void)
 	if(delay == 0)
 	{
 		delay = 250;
-		BluePill_LedToggle();
+		//BluePill_LedToggle();
+
 	}
   }
   /* USER CODE END 3 */
