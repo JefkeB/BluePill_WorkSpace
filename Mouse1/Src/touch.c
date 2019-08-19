@@ -8,6 +8,7 @@
 #include "touch.h"
 #include "i2c.h"
 #include "usb_device.h"
+#include "usbd_hid.h"
 
 #define max_point_num 5
 
@@ -16,7 +17,7 @@
 #define TOUCH_I2C_ID   FT5316_I2C_ID
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
-extern uint8_t USBD_HID_SendReport (USBD_HandleTypeDef  *pdev, uint8_t *report, uint16_t len);
+//extern uint8_t USBD_HID_SendReport (USBD_HandleTypeDef  *pdev, uint8_t *report, uint16_t len);
 
 static uint8_t touchIrq = 0;
 static uint16_t oldX[max_point_num]={0,};
