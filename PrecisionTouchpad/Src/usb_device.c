@@ -55,6 +55,21 @@ USBD_HandleTypeDef hUsbDeviceFS;
  */
 /* USER CODE BEGIN 1 */
 
+// receive data from out reports (= from host) here
+//
+//
+uint8_t OutEvent(uint8_t *data, uint8_t dataLength)
+{
+	printf("data rx length: %d\r\n", dataLength);
+	for(int idx = 0; idx < dataLength; idx++)
+	{
+		printf("%x ", data[idx]);
+	}
+	printf("\r\n");
+
+	return 1;
+}
+
 /* USER CODE END 1 */
 
 /**

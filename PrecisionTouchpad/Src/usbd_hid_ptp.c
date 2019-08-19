@@ -107,6 +107,10 @@ static uint8_t  *USBD_HID_GetCfgDesc (uint16_t *length);
 static uint8_t  *USBD_HID_GetDeviceQualifierDesc (uint16_t *length);
 
 static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
+
+
+static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  USBD_HID_EP0_RxReady (USBD_HandleTypeDef  *pdev);
 /**
   * @}
   */ 
@@ -122,11 +126,11 @@ USBD_ClassTypeDef  USBD_HID =
   USBD_HID_Init,
   USBD_HID_DeInit,
   USBD_HID_Setup,
-  NULL, /*EP0_TxSent*/
-  NULL, /*EP0_RxReady*/
-  USBD_HID_DataIn, /*DataIn*/
-  NULL, /*DataOut*/
-  NULL, /*SOF */
+  NULL, 					/*EP0_TxSent*/
+  USBD_HID_EP0_RxReady, 	/*EP0_RxReady*/
+  USBD_HID_DataIn, 			/*DataIn*/
+  USBD_HID_DataOut, 		/*DataOut*/
+  NULL, 					/*SOF */
   NULL,
   NULL,
   USBD_HID_GetCfgDesc,
@@ -547,7 +551,7 @@ __ALIGN_BEGIN static uint8_t HID_PTP_ReportDesc[HID_PTP_REPORT_DESC_SIZE]  __ALI
 //
 //
 const uint8_t touchQualityKey[] = {
-    REPORTID_PTPHQA,
+    0x03,
 	0xfc, 0x28, 0xfe, 0x84, 0x40, 0xcb, 0x9a, 0x87, 0x0d, 0xbe, 0x57, 0x3c, 0xb6, 0x70, 0x09, 0x88,
 	0x07, 0x97, 0x2d, 0x2b, 0xe3, 0x38, 0x34, 0xb6, 0x6c, 0xed, 0xb0, 0xf7, 0xe5, 0x9c, 0xf6, 0xc2,
 	0x2e, 0x84, 0x1b, 0xe8, 0xb4, 0x51, 0x78, 0x43, 0x1f, 0x28, 0x4b, 0x7c, 0x2d, 0x53, 0xaf, 0xfc,
@@ -565,6 +569,8 @@ const uint8_t touchQualityKey[] = {
 	0x1f, 0xfb, 0xda, 0xaf, 0xa2, 0xa8, 0x6a, 0x89, 0xd6, 0xbf, 0xf2, 0xd3, 0x32, 0x2a, 0x9a, 0xe4,
 	0xcf, 0x17, 0xb7, 0xb8, 0xf4, 0xe1, 0x33, 0x08, 0x24, 0x8b, 0xc4, 0x43, 0xa5, 0xe5, 0x24, 0xc2
 };
+
+
 
 /* USB HID device Configuration Descriptor */
 __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ]  __ALIGN_END =
@@ -589,8 +595,8 @@ __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ]  __ALIGN_
   0x00,         /*bAlternateSetting: Alternate setting*/
   0x01,         /*bNumEndpoints*/
   0x03,         /*bInterfaceClass: HID*/
-  0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
-  0x02,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+  0x00, //0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
+  0x00, //0x02,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
   0,            /*iInterface: Index of string descriptor*/
   /******************** Descriptor of Joystick Mouse HID ********************/
   /* 18 */
@@ -673,6 +679,13 @@ static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev,
                  USBD_EP_TYPE_INTR,
                  HID_EPIN_SIZE);  
   
+
+  /* Open EP OUT */
+   USBD_LL_OpenEP(pdev,
+                  HID_EPOUT_ADDR,
+                  USBD_EP_TYPE_INTR,
+                  HID_EPOUT_SIZE);
+
   pdev->pClassData = USBD_malloc(sizeof (USBD_HID_HandleTypeDef));
   
   if(pdev->pClassData == NULL)
@@ -681,7 +694,18 @@ static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev,
   }
   else
   {
-    ((USBD_HID_HandleTypeDef *)pdev->pClassData)->state = HID_IDLE;
+		USBD_HID_HandleTypeDef     *hhid;
+	    hhid = (USBD_HID_HandleTypeDef *)pdev->pClassData;
+
+	    hhid->state = HID_IDLE;
+
+	    //((USBD_HID_HandleTypeDef *)pdev->pClassData)->state = HID_IDLE;
+
+	    //((USBD_HID_ItfTypeDef *)pdev->pUserData)->Init();
+	    /* Prepare Out endpoint to receive 1st packet */
+	    USBD_LL_PrepareReceive(pdev, HID_EPOUT_ADDR, hhid->Report_buf,
+	                           //USBD_CUSTOMHID_OUTREPORT_BUF_SIZE);
+	    					  HID_EPOUT_SIZE);
   }
   return ret;
 }
@@ -700,6 +724,10 @@ static uint8_t  USBD_HID_DeInit (USBD_HandleTypeDef *pdev,
   USBD_LL_CloseEP(pdev,
                   HID_EPIN_ADDR);
   
+  /* Close CUSTOM_HID EP OUT */
+  USBD_LL_CloseEP(pdev,
+                  HID_EPOUT_ADDR);
+
   /* FRee allocated memory */
   if(pdev->pClassData != NULL)
   {
@@ -749,7 +777,63 @@ static uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev,
       USBD_CtlSendData (pdev, 
                         (uint8_t *)&hhid->IdleState,
                         1);        
-      break;      
+      break;
+
+    // GET Report -> To Host
+    case HID_REQ_GET_REPORT:
+    	switch(req->wValue)
+    	{
+    		// send out capabilities report
+    		case FEATURE_BUILD(REPORTID_MAX_COUNT) :
+			{
+				/*
+				Usage (Contact Count Maximum) (4) b0..3
+
+				Usage (Pad Type)			  (4) b4..7
+					0	Depressible (Click-pad)
+					1 	Non-Depressible (Pressure-pad)
+				*/
+
+				const uint8_t data[2] = {0x02, 0x05};
+				USBD_CtlSendData (pdev,
+								  (uint8_t*)data,
+								  2);
+			}
+    		break;
+
+    		// send out PTPHQA report
+    		case FEATURE_BUILD(REPORTID_PTPHQA) :
+				USBD_CtlSendData (pdev,
+								  (uint8_t*)touchQualityKey,
+								  257);
+    		break;
+
+    		default:
+    			return USBD_FAIL;
+
+    	}
+    	break;
+
+	// SET Report -> To Device (me)
+	case HID_REQ_SET_REPORT:
+        	switch(req->wValue)
+        	{
+        		//
+        		case FEATURE_BUILD(REPORTID_LATENCY) :
+        		case FEATURE_BUILD(REPORTID_REPORTINGMODE) :
+        		case FEATURE_BUILD(REPORTID_FUNCTION_SWITCH) :
+        	    	hhid->IsReportAvailable = 1;
+        			USBD_CtlPrepareRx (pdev, hhid->Report_buf, (uint8_t)(req->wLength));
+        		break;
+
+        		default:
+        			printf("HID_REQ_SET_REPORT unknown: %d\r\n", req->wValue);
+        			USBD_CtlError (pdev, req);
+        			return USBD_FAIL;
+        	}
+
+        	break;
+
       
     default:
       USBD_CtlError (pdev, req);
@@ -890,6 +974,61 @@ static uint8_t  *USBD_HID_GetDeviceQualifierDesc (uint16_t *length)
   *length = sizeof (USBD_HID_DeviceQualifierDesc);
   return USBD_HID_DeviceQualifierDesc;
 }
+
+
+
+/**
+  * @brief  USBD_HID_DataOut
+  *         handle data OUT Stage
+  * @param  pdev: device instance
+  * @param  epnum: endpoint index
+  * @retval status
+  */
+uint8_t * OutEvent(uint8_t *data, uint8_t dataLength);
+static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev,
+                              uint8_t epnum)
+{
+
+  /* Ensure that the FIFO is empty before a new transfer, this condition could
+  be caused by  a new transfer before the end of the previous transfer */
+  //((USBD_HID_HandleTypeDef *)pdev->pClassData)->state = HID_IDLE;
+
+
+  USBD_HID_HandleTypeDef     *hhid = (USBD_HID_HandleTypeDef*)pdev->pClassData;
+
+  //((USBD_HID_ItfTypeDef *)pdev->pUserData)->OutEvent(hhid->Report_buf);
+  OutEvent(hhid->Report_buf, pdev->ep0_data_len);
+  USBD_LL_PrepareReceive(pdev, HID_EPOUT_ADDR , hhid->Report_buf,
+		  	  	  	     HID_EPOUT_SIZE);
+
+  return USBD_OK;
+}
+
+
+/**
+  * @brief  USBD_HID_EP0_RxReady
+  *         Handles control request data.
+  * @param  pdev: device instance
+  * @retval status
+  */
+uint8_t USBD_HID_EP0_RxReady(USBD_HandleTypeDef *pdev)
+{
+  USBD_HID_HandleTypeDef     *hhid = (USBD_HID_HandleTypeDef*)pdev->pClassData;
+
+  if (hhid->IsReportAvailable == 1)
+  {
+
+    //((USBD_HID_ItfTypeDef *)pdev->pUserData)->OutEvent(hhid->Report_buf);
+	//hhid->OutEvent(hhid->Report_buf);
+	OutEvent(hhid->Report_buf, pdev->ep0_data_len);
+
+    hhid->IsReportAvailable = 0;
+  }
+
+  return USBD_OK;
+}
+
+
 
 /**
   * @}

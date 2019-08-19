@@ -52,6 +52,9 @@
 #define HID_EPIN_ADDR                 0x81
 #define HID_EPIN_SIZE                 0x04
 
+#define HID_EPOUT_ADDR                0x01
+#define HID_EPOUT_SIZE                0x10
+
 #define USB_HID_CONFIG_DESC_SIZ       34
 #define USB_HID_DESC_SIZ              9
 
@@ -91,7 +94,10 @@ typedef struct
   uint32_t             Protocol;   
   uint32_t             IdleState;  
   uint32_t             AltSetting;
-  HID_StateTypeDef     state;  
+  HID_StateTypeDef     state;
+
+  uint8_t              Report_buf[512];
+  uint32_t             IsReportAvailable;
 }
 USBD_HID_HandleTypeDef; 
 /**
@@ -121,6 +127,25 @@ extern USBD_ClassTypeDef  USBD_HID;
 /** @defgroup USB_CORE_Exported_Functions
   * @{
   */ 
+
+struct precision_report {
+  uint8_t id : 8;
+  struct {
+	  uint8_t valid : 1;
+	  uint8_t tip : 1;
+	  uint8_t __pad0 : 2;
+	  uint8_t contId : 4;
+	  uint16_t X : 16;
+	  uint16_t Y : 16;
+  } __attribute__((packed)) fingers[5];
+  uint16_t time : 16;
+  uint8_t contactCnt : 8;
+  uint8_t btn : 1;
+  uint8_t __pad2 : 7;
+  uint16_t __pad1 : 16;
+} __attribute__((packed));
+struct precision_report report;
+
 uint8_t USBD_HID_SendReport (USBD_HandleTypeDef *pdev, 
                                  uint8_t *report,
                                  uint16_t len);

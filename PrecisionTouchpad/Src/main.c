@@ -89,6 +89,12 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+
+  // disconnect the usb, will be reconnected when initialized some line later
+  // prevents that while developing the reconnection is not happening
+  BluePill_UsbDisconnect();
+
+
   Uart_Setup();
   printf("gestart\r\n");
 
