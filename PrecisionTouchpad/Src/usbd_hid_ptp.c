@@ -113,6 +113,29 @@ static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
 
 
 
+/** @defgroup USBD_HID_Private_Variables
+  * @{
+  */
+
+USBD_ClassTypeDef  USBD_HID =
+{
+  USBD_HID_Init,
+  USBD_HID_DeInit,
+  USBD_HID_Setup,
+  NULL, /*EP0_TxSent*/
+  NULL, /*EP0_RxReady*/
+  USBD_HID_DataIn, /*DataIn*/
+  NULL, /*DataOut*/
+  NULL, /*SOF */
+  NULL,
+  NULL,
+  USBD_HID_GetCfgDesc,
+  USBD_HID_GetCfgDesc,
+  USBD_HID_GetCfgDesc,
+  USBD_HID_GetDeviceQualifierDesc,
+};
+
+
 // values for the Report id's in the report descriptor
 #define REPORT_ID_MOUSE					1
 #define REPORTID_MAX_COUNT				2
@@ -541,29 +564,6 @@ const uint8_t touchQualityKey[] = {
 	0xc1, 0xe2, 0xee, 0x53, 0x2d, 0x86, 0x7e, 0xa7, 0x5a, 0xc5, 0xd3, 0x7d, 0x98, 0xbe, 0x31, 0x48,
 	0x1f, 0xfb, 0xda, 0xaf, 0xa2, 0xa8, 0x6a, 0x89, 0xd6, 0xbf, 0xf2, 0xd3, 0x32, 0x2a, 0x9a, 0xe4,
 	0xcf, 0x17, 0xb7, 0xb8, 0xf4, 0xe1, 0x33, 0x08, 0x24, 0x8b, 0xc4, 0x43, 0xa5, 0xe5, 0x24, 0xc2
-};
-
-
-/** @defgroup USBD_HID_Private_Variables
-  * @{
-  */ 
-
-USBD_ClassTypeDef  USBD_HID = 
-{
-  USBD_HID_Init,
-  USBD_HID_DeInit,
-  USBD_HID_Setup,
-  NULL, /*EP0_TxSent*/  
-  NULL, /*EP0_RxReady*/
-  USBD_HID_DataIn, /*DataIn*/
-  NULL, /*DataOut*/
-  NULL, /*SOF */
-  NULL,
-  NULL,      
-  USBD_HID_GetCfgDesc,
-  USBD_HID_GetCfgDesc, 
-  USBD_HID_GetCfgDesc,
-  USBD_HID_GetDeviceQualifierDesc,
 };
 
 /* USB HID device Configuration Descriptor */
