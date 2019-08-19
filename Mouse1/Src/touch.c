@@ -8,6 +8,8 @@
 #include "touch.h"
 #include "i2c.h"
 #include "usb_device.h"
+#include <string.h>
+#include "usbd_ptp_hid.h"
 
 #define max_point_num 5
 
@@ -16,7 +18,7 @@
 #define TOUCH_I2C_ID   FT5316_I2C_ID
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
-extern uint8_t USBD_HID_SendReport (USBD_HandleTypeDef  *pdev, uint8_t *report, uint16_t len);
+//extern uint8_t USBD_HID_SendReport (USBD_HandleTypeDef  *pdev, uint8_t *report, uint16_t len);
 
 static uint8_t touchIrq = 0;
 static uint16_t oldX[max_point_num]={0,};
@@ -44,7 +46,45 @@ const uint8_t touchQualityKey[] = {
 		0xcf, 0x17, 0xb7, 0xb8, 0xf4, 0xe1, 0x33, 0x08, 0x24, 0x8b, 0xc4, 0x43, 0xa5, 0xe5, 0x24, 0xc2
 };
 
-
+#if 0
+//--------------------------------------------------------------------------------
+// Digitizer Device Page inputReport 04 (Device --> Host)
+//--------------------------------------------------------------------------------
+#pragma reverse_bitfields on
+struct __packed inputReport04_t
+{
+  uint8_t  reportId;                                 // Report ID = 0x04 (4)
+                                                     // Collection: CA:TouchPad CL:Finger
+  uint8_t  DIG_TouchPadFingerConfidence : 1;         // Usage 0x000D0047: Confidence, Value = 0 to 1
+  uint8_t  DIG_TouchPadFingerTipSwitch : 1;          // Usage 0x000D0042: Tip Switch, Value = 0 to 1
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  DIG_TouchPadFingerContactIdentifier : 4;  // Usage 0x000D0051: Contact Identifier, Value = 0 to 15
+/*
+  uint8_t  DIG_TouchPadFingerContactIdentifier : 4;  // Usage 0x000D0051: Contact Identifier, Value = 0 to 15
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  DIG_TouchPadFingerTipSwitch : 1;          // Usage 0x000D0042: Tip Switch, Value = 0 to 1
+  uint8_t  DIG_TouchPadFingerConfidence : 1;         // Usage 0x000D0047: Confidence, Value = 0 to 1
+*/
+  uint16_t GD_TouchPadFingerX;                       // Usage 0x00010030: X, Value = 0 to 3200, Physical = Value / 8 in 10⁻² inch units
+  uint16_t GD_TouchPadFingerY;                       // Usage 0x00010031: Y, Value = 0 to 2198, Physical = Value x 275 / 2198 in 10⁻² inch units
+                                                     // Collection: CA:TouchPad
+  uint16_t DIG_TouchPadRelativeScanTime;             // Usage 0x000D0056: Relative Scan Time, Value = 0 to 65535, Physical = Value in 10⁻⁴ s units
+  uint8_t  DIG_TouchPadContactCount;                 // Usage 0x000D0054: Contact Count, Value = 0 to 127, Physical = Value x 65535 / 127 in 10⁻⁴ s units
+  uint8_t  BTN_TouchPadButton1 : 1;                  // Usage 0x00090001: Button 1 Primary/trigger, Value = 0 to 1, Physical = Value x 65535 in 10⁻⁴ s units
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+  uint8_t  : 1;                                      // Pad
+//  uint8_t  BTN_TouchPadButton1 : 1;                  // Usage 0x00090001: Button 1 Primary/trigger, Value = 0 to 1, Physical = Value x 65535 in 10⁻⁴ s units
+  //uint8_t  BTN_TouchPadTouchpad0xc5[4];              // Usage 0x000900C5: TouchPad 0xC5, Value = 0 to 1, Physical = Value x 65535 in 10⁻⁴ s units
+} ;
+#pragma reverse_bitfields off
+#endif
 struct __packed touchHid_t {
 	uint8_t tip;
 	uint8_t num;
@@ -84,16 +124,109 @@ void tpd_up(uint16_t x, uint16_t y, uint16_t p)
 	multiTouch.id++;
 }
 
-uint8_t buffer[4] = { 0 };
+uint8_t buffer[32] = { 0 };
 uint16_t prevX= -1;
 uint16_t prevY= -1;
 int16_t deltaX;
 int16_t deltaY;
 
+uint16_t scantime;
+
+/*
+typedef struct
+{
+  uint8_t  reportId;                                 	// Report ID = 0x04 (4)
+
+                                                     	// Collection: CA:TouchPad CL:Finger
+  uint8_t  DIG_TouchPadFingerConfidence_1 : 1;         	// Usage 0x000D0047: Confidence, Value = 0 to 1
+  uint8_t  DIG_TouchPadFingerTipSwitch_1 : 1;          	// Usage 0x000D0042: Tip Switch, Value = 0 to 1
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  DIG_TouchPadFingerContactIdentifier_1 : 4;  	// Usage 0x000D0051: Contact Identifier, Value = 0 to 15
+  uint16_t GD_TouchPadFingerX_1;                       	// Usage 0x00010030: X, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerY_1;                       	// Usage 0x00010031: Y, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+
+                                                     	// Collection: CA:TouchPad CL:
+  uint8_t  DIG_TouchPadFingerConfidence_2 : 1;          // Usage 0x000D0047: Confidence, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  DIG_TouchPadFingerTipSwitch_2 : 1;           // Usage 0x000D0042: Tip Switch, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  DIG_TouchPadFingerContactIdentifier_2 : 4;   // Usage 0x000D0051: Contact Identifier, Value = 0 to 15, Physical = Value x 1024 / 15 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerX_2;                        // Usage 0x00010030: X, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerY_2;                        // Usage 0x00010031: Y, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+
+  uint8_t  DIG_TouchPadFingerConfidence_3 : 1;          // Usage 0x000D0047: Confidence, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  DIG_TouchPadFingerTipSwitch_3 : 1;           // Usage 0x000D0042: Tip Switch, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  DIG_TouchPadFingerContactIdentifier_3 : 4;   // Usage 0x000D0051: Contact Identifier, Value = 0 to 15, Physical = Value x 1024 / 15 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerX_3;                        // Usage 0x00010030: X, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerY_3;                        // Usage 0x00010031: Y, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+
+  uint8_t  DIG_TouchPadFingerConfidence_4 : 1;          // Usage 0x000D0047: Confidence, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  DIG_TouchPadFingerTipSwitch_4 : 1;           // Usage 0x000D0042: Tip Switch, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  DIG_TouchPadFingerContactIdentifier_4 : 4;   // Usage 0x000D0051: Contact Identifier, Value = 0 to 15, Physical = Value x 1024 / 15 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerX_4;                        // Usage 0x00010030: X, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerY_4;                        // Usage 0x00010031: Y, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+
+  uint8_t  DIG_TouchPadFingerConfidence_5 : 1;          // Usage 0x000D0047: Confidence, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  DIG_TouchPadFingerTipSwitch_5 : 1;           // Usage 0x000D0042: Tip Switch, Value = 0 to 1, Physical = Value x 1024 in 10⁻⁴ m units
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  DIG_TouchPadFingerContactIdentifier_5 : 4;   // Usage 0x000D0051: Contact Identifier, Value = 0 to 15, Physical = Value x 1024 / 15 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerX_5;                        // Usage 0x00010030: X, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+  uint16_t GD_TouchPadFingerY_5;                        // Usage 0x00010031: Y, Value = 0 to 1228, Physical = Value x 256 / 307 in 10⁻⁴ m units
+
+                                                     	// Collection: CA:TouchPad
+  uint16_t DIG_TouchPadRelativeScanTime;             	// Usage 0x000D0056: Relative Scan Time, Value = 0 to 65535, Physical = Value in 10⁻⁴ s units
+  uint8_t  DIG_TouchPadContactCount;                 	// Usage 0x000D0054: Contact Count, Value = 0 to 127, Physical = Value x 65535 / 127 in 10⁻⁴ s units
+
+  uint8_t  BTN_TouchPadButton1 : 1;                  	// Usage 0x00090001: Button 1 Primary/trigger, Value = 0 to 1, Physical = Value x 65535 in 10⁻⁴ s units
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+  uint8_t  : 1;                                      	// Pad
+
+  uint8_t  BTN_TouchPadTouchpad0xc5[2];              	// Usage 0x000900C5: TouchPad 0xC5, Value = 0 to 1, Physical = Value x 65535 in 10⁻⁴ s units
+} inputReport04_t;
+
+
+struct inputReport04_t report;
+
+*/
+
+
+struct precision_report {
+  uint8_t id : 8;
+  struct {
+	  uint8_t valid : 1;
+	  uint8_t tip : 1;
+	  uint8_t __pad0 : 2;
+	  uint8_t contId : 4;
+	  uint16_t X : 16;
+	  uint16_t Y : 16;
+  } __attribute__((packed)) fingers[5];
+  uint16_t time : 16;
+  uint8_t contactCnt : 8;
+  uint8_t btn : 1;
+  uint8_t __pad2 : 7;
+  uint16_t __pad1 : 16;
+} __attribute__((packed));
+struct precision_report report;
+
 void touchInput_sync()
 {
 	multiTouch.report = 0x01;
 	multiTouch.count++;
+
+
+	Uart_Putc('.');
+
 /*
 	//for(int i=0;i<max_point_num;i++)
 	for(int i=0;i<1;i++)
@@ -109,14 +242,112 @@ void touchInput_sync()
 		memset(&multiTouch.touch[i], 0x00, sizeof(struct touchHid_t));
 	}
 */
-
+/*
 	// 0 : button state bit field
 	// 1 : signed 8bit X-axis offset since the last position
 	// 2 : signed 8bit Y-axis offset since the last position
 	// 3 : signed 8bit Wheel offset since the last position
+*/
+
+	// 0 : X-Hi
+	// 1 : X-lo
+	// 2 : Y-Hi
+	// 3 : Y-lo
+	//
+
 	//uint8_t buffer[4] = { 0 };
 	//buffer[1] = 10;
 	//static uint16_t old = -1;
+
+	uint8_t update = 0;
+#if 0
+	buffer[0] = 1; // Report ID
+	buffer[1] = 0; // Buttons	b0,b1
+	buffer[2] = 0; // X
+	buffer[3] = 0; // Y
+	buffer[4] = 0; // Wheel
+	buffer[5] = 0; // AC Pan
+	buffer[6] = 0;
+	buffer[7] = 0;
+	buffer[8] = 0;
+	buffer[9] = 0;
+
+/*
+	if(multiTouch.touch[0].tip > 0)
+	{
+		buffer[1] = 0x01;
+	}
+*/
+
+	buffer[2] = 10;
+	USBD_HID_SendReport(&hUsbDeviceFS, buffer, 10);
+#endif
+
+#if 0
+	Uart_Putc('.');
+
+	memset((uint8_t*)&report, 0, sizeof(struct inputReport04_t));
+
+	report.reportId = 0x04; // REPORTID_TOUCHPAD;
+
+	report.DIG_TouchPadFingerContactIdentifier = 0;
+	report.DIG_TouchPadFingerConfidence = 1;
+	report.DIG_TouchPadFingerTipSwitch = 1;
+
+	report.GD_TouchPadFingerX = 100;
+	report.GD_TouchPadFingerY = 0;
+
+	uint16_t t = scantime;
+	report.DIG_TouchPadRelativeScanTime = (t >> 8) & 0xFF;
+	report.DIG_TouchPadRelativeScanTime |= ((t & 0x00FF) << 8) & 0xFF00;
+
+	report.DIG_TouchPadContactCount = 1;
+
+
+	report.BTN_TouchPadButton1 = 0;
+/*
+	report.BTN_TouchPadTouchpad0xc5[0] = 1;
+	report.BTN_TouchPadTouchpad0xc5[1] = 0;
+	report.BTN_TouchPadTouchpad0xc5[2] = 0;
+	report.BTN_TouchPadTouchpad0xc5[3] = 0;
+*/
+	USBD_HID_SendReport(&hUsbDeviceFS, (uint8_t*)&report, sizeof(struct inputReport04_t));
+#endif
+
+	// precision report
+	memset(&report, 0, sizeof(struct precision_report));
+
+	report.id = 0x04;	// REPORTID_TOUCHPAD
+
+	report.time = scantime;
+	report.contactCnt = p_point_num;
+	report.btn = 0;
+	report.__pad1 = 0;
+	report.__pad2 = 0x80 >> 1;
+
+	for(int idx = 0; idx < 5; idx++)
+	{
+		report.fingers[0].X = 0;
+		report.fingers[0].Y = 0;
+		report.fingers[0].contId = 0;
+		report.fingers[0].valid = 0;
+		report.fingers[0].tip = 0;
+		report.fingers[0].__pad0 = 0;
+	}
+
+	if(multiTouch.touch[0].tip > 0)
+	{
+		report.fingers[0].X = multiTouch.touch[0].x;
+		report.fingers[0].Y = multiTouch.touch[0].y;
+		report.fingers[0].contId = 0;
+		report.fingers[0].valid = 1;
+		report.fingers[0].tip = 1;
+		report.fingers[0].__pad0 = 0;
+	}
+
+	USBD_HID_SendReport(&hUsbDeviceFS, (uint8_t*)&report, sizeof(struct precision_report));
+
+#if 0
 	if(prevX == -1)
 	{
 		prevX = multiTouch.touch[0].x;
@@ -124,8 +355,6 @@ void touchInput_sync()
 	}
 	else
 	{
-		buffer[1] = 0;
-		buffer[2] = 0;
 
 		deltaX = multiTouch.touch[0].x - prevX;
 		deltaY = multiTouch.touch[0].y - prevY;
@@ -133,13 +362,15 @@ void touchInput_sync()
 		deltaX *= -1;
 		if(deltaX >= 3)
 		{
-			buffer[1] = deltaX >= 10 ?20:2;
+			buffer[2] = deltaX >= 10 ?20:2;
+			update = 1;
 		}
 		else
 		{
 			if(deltaX <= -3)
 			{
-				buffer[1] = deltaX <= -10?-20:-2;
+				buffer[2] = deltaX <= -10?-20:-2;
+				update = 1;
 			}
 		}
 		prevX = multiTouch.touch[0].x;
@@ -147,22 +378,25 @@ void touchInput_sync()
 
 		if(deltaY >= 5)
 		{
-			buffer[2] = -5;
+			buffer[3] = -5;
+			update = 1;
 		}
 		else
 		{
 			if(deltaY <= -5)
 			{
-				buffer[2] = 5;
+				buffer[3] = 5;
+				update = 1;
 			}
 		}
 		prevY = multiTouch.touch[0].y;
 
-		if((buffer[1] != 0) || (buffer[2] != 0))
+		if(update == 1)
 		{
 			USBD_HID_SendReport(&hUsbDeviceFS, buffer, 4);
 		}
 	}
+#endif
 }
 
 
@@ -248,6 +482,8 @@ void touchInit()
 	}
 }
 
+
+
 void touchProc()
 {
 	uint8_t point_num;
@@ -255,9 +491,14 @@ void touchProc()
 	uint16_t x[max_point_num];
 	uint16_t y[max_point_num];
 	uint8_t dat[100];
+
+
+//	if(hhid)
+
 	if(touchIrq)
 	{
 		touchIrq=0;
+
 
 		i2cRead(TOUCH_I2C_ID, 0x00, dat, 33);
 
